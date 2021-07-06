@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflow_addons as tfa
 
 
 class BiLstmCRF(tf.keras.Model):
@@ -9,4 +10,30 @@ class BiLstmCRF(tf.keras.Model):
         self.dense = tf.keras.layers.Dense(label_size)
 
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
-        self.crf_params = tf.Variable(tf.random.uniform(shape=(label_size, label_size)))
+        self.transition_params = tf.Variable(tf.random.uniform(shape=(label_size, label_size)))
+
+    def call(self, inputs, training=None, mask=None):
+        # inp = inputs['input']
+        # tags = inputs.get('tag', None)
+        if len(inputs) == 1:
+            inp = inputs
+            tags = None
+        else:
+            inp, tags = inputs
+        mask = tf.math.not_equal(inp, 0)
+        seq_lens = tf.math.reduce_sum(tf.cast(mask, dtype=tf.int32), axis=-1)
+
+        embs = self.embedding(inp)
+        embs = self.dropout(embs, training=training)
+
+        lstm_out = self.bilstm(embs, mask=mask)
+        potentials = self.dense(lstm_out)
+        if tags is not None:
+            log_likelihood, self.transition_params = tfa.text.crf_log_likelihood(potentials,
+                                                                                 tags, seq_lens,
+                                                                                 self.transition_params)
+            loss = -tf.math.reduce_mean(log_likelihood)
+            self.add_loss(loss)
+
+        return potentials, seq_lens
+
