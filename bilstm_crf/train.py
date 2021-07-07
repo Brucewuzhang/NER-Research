@@ -4,6 +4,8 @@ import json
 import tensorflow as tf
 from .utils import generate_dataset, build_vocab
 from .model import BiLstmCRF
+from seqeval.metrics import classification_report
+import tensorflow_addons as tfa
 
 
 def main():
@@ -29,7 +31,7 @@ def main():
 
     train_file = os.path.join(data_dir, 'eng.train')
     val_file = os.path.join(data_dir, 'eng.testa')
-    # test_file = os.path.join(data_dir, 'eng.testb')
+    test_file = os.path.join(data_dir, 'eng.testb')
 
     vocab_file = os.path.join(data_dir, 'vocab.json')
     label_file = os.path.join(data_dir, 'label.json')
@@ -49,16 +51,18 @@ def main():
         with open(label_file, 'w', encoding='utf-8') as f:
             json.dump(label, f)
 
+    id2label = {v: k for k,v in label.items()}
+
     train_dataset = generate_dataset(train_file, vocab, label, batch_size)
-    val_dataset = generate_dataset(val_file, vocab, label, batch_size)
-    # test_dataset = generate_dataset(test_file, vocab, label, batch_size)
+    val_dataset = generate_dataset(val_file, vocab, label, batch_size, shuffle=False)
+    test_dataset = generate_dataset(test_file, vocab, label, batch_size, shuffle=False, testset=False)
 
     # create model
     vocab_size = len(vocab)
     label_size = len(label)
 
     filepath = os.path.join(model_dir, 'model.ckpt-{epoch}')
-    ckpt = tf.keras.callbacks.ModelCheckpoint(filepath=filepath, verbose=1, save_best_only=False,
+    ckpt = tf.keras.callbacks.ModelCheckpoint(filepath=filepath, verbose=1, save_best_only=True,
                                               save_weights_only=True)
     early_stop = tf.keras.callbacks.EarlyStopping(patience=3, verbose=1)
 
@@ -78,11 +82,28 @@ def main():
         print(model.summary())
         # print(tf.keras.utils.plot_model(model))
 
-
-
     model.compile(optimizer=tf.keras.optimizers.Adam(lr))
     model.fit(train_dataset, epochs=epoch, validation_data=val_dataset, validation_freq=1, verbose=2,
               callbacks=[ckpt, early_stop])
+
+    latest_ckpt = tf.train.latest_checkpoint(model_dir)
+
+    model.load_weights(latest_ckpt).expect_partial()
+
+    y_true = []
+    y_pred = []
+    for it in test_dataset.take(-1):
+        it = it[0]
+        tags = it[1]
+        logits, seq_lens = model(inputs=(it[0],), training=False)
+        for logit, seq_len, tag in zip(logits, seq_lens, tags.numpy()):
+            viterbi_path, _ = tfa.text.viterbi_decode(logit[:seq_len], model.transition_params)
+            tag = tag[:seq_len]
+            y_true.append([id2label[t] for t in tag])
+            y_pred.append([id2label[t] for t in viterbi_path])
+
+    print(classification_report(y_true, y_pred))
+
 
 
 if __name__ == "__main__":

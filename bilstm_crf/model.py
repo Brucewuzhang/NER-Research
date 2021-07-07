@@ -16,10 +16,12 @@ class BiLstmCRF(tf.keras.Model):
         # inp = inputs['input']
         # tags = inputs.get('tag', None)
         if len(inputs) == 1:
-            inp = inputs
+            inp = inputs[0]
             tags = None
-        else:
+        elif len(inputs) == 2:
             inp, tags = inputs
+        else:
+            raise Exception("inputs must be a list of length 1 or 2")
         mask = tf.math.not_equal(inp, 0)
         seq_lens = tf.math.reduce_sum(tf.cast(mask, dtype=tf.int32), axis=-1)
 

@@ -34,7 +34,7 @@ def encode_file(datafile, vocab: dict, labels: dict):
     return gen
 
 
-def generate_dataset(datafile, vocab, labels, batch_size, shuffle=True):
+def generate_dataset(datafile, vocab, labels, batch_size, shuffle=True, testset=False):
     encoded_seq = encode_file(datafile, vocab, labels)
     dataset = tf.data.Dataset.from_generator(encoded_seq, output_shapes=([None], [None]), output_types=(tf.int32, tf.int32))
                                              # output_signature=(tf.TensorSpec(shape=[None], dtype=tf.int32),
@@ -42,7 +42,10 @@ def generate_dataset(datafile, vocab, labels, batch_size, shuffle=True):
     dataset = dataset.padded_batch(batch_size, padded_shapes=([None], [None]))
     if shuffle:
         dataset = dataset.shuffle(buffer_size=200_000, reshuffle_each_iteration=True)
-    dataset = dataset.map(lambda x,y: ((x, y),), num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    if not testset:
+        dataset = dataset.map(lambda x,y: ((x, y),), num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    else:
+        dataset = dataset.map(lambda x,y: ((x,), y), num_parallel_calls=tf.data.experimental.AUTOTUNE)
     dataset = dataset.cache().prefetch(tf.data.experimental.AUTOTUNE)
     return dataset
 
