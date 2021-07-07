@@ -34,7 +34,8 @@ class BiLstmCRF(tf.keras.Model):
             log_likelihood, self.transition_params = tfa.text.crf_log_likelihood(potentials,
                                                                                  tags, seq_lens,
                                                                                  self.transition_params)
-            loss = -tf.math.reduce_mean(log_likelihood)
+            # normalize loss by seq length
+            loss = -tf.math.reduce_mean(log_likelihood/ tf.cast(seq_lens, dtype=log_likelihood.dtype))
             self.add_loss(loss)
 
         return potentials, seq_lens

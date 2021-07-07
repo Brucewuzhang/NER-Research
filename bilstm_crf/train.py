@@ -12,12 +12,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', help='data dir contain train/val/test files')
     parser.add_argument('--batch_size', type=int, help='batch size', default=32)
-    parser.add_argument('--dropout_rate', type=float, help='drop out rate', default=0.5)
+    parser.add_argument('--dropout_rate', type=float, help='drop out rate', default=0.3)
     parser.add_argument('--embedding_size', type=int, help='embedding size', default=32)
     parser.add_argument('--hidden_dim', type=int, help='lstm units', default=32)
     parser.add_argument('--lr', help='learning rate', default=1e-3)
     parser.add_argument('--model_dir', help='model dir')
-    parser.add_argument('--epoch', type=int, help='train epoch', default=10)
+    parser.add_argument('--epoch', type=int, help='train epoch', default=50)
     args = parser.parse_args()
     data_dir = args.data_dir
     model_dir = args.model_dir
