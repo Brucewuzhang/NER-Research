@@ -1,4 +1,42 @@
 import tensorflow as tf
+import tensorflow_addons as tfa
+from seqeval.metrics import classification_report
+
+
+class NERF1Metrics(tf.keras.callbacks.Callback):
+
+    def __init__(self, id2label, pad_value=0, validation_data=None):
+        """
+        Args:
+            id2label (dict): id to label mapping.
+            (e.g. {1: 'B-LOC', 2: 'I-LOC'})
+            pad_value (int): padding value.
+        """
+        super(NERF1Metrics, self).__init__()
+        self.id2label = id2label
+        self.pad_value = pad_value
+        self.validation_data = validation_data
+
+    def score(self, y_true, y_pred):
+        print(classification_report(y_true, y_pred, digits=4))
+
+    def on_epoch_end(self, epoch, logs={}):
+        self.on_epoch_end_fit(epoch, logs)
+
+    def on_epoch_end_fit(self, epoch, logs={}):
+        y_true = []
+        y_pred = []
+        for it in self.validation_data.take(-1):
+            it = it[0]
+            tags = it[1]
+            logits, seq_lens = self.model(inputs=(it[0],), training=False)
+            for logit, seq_len, tag in zip(logits, seq_lens, tags.numpy()):
+                viterbi_path, _ = tfa.text.viterbi_decode(logit[:seq_len], self.model.transition_params)
+                tag = tag[:seq_len]
+                y_true.append([self.id2label[t] for t in tag])
+                y_pred.append([self.id2label[t] for t in viterbi_path])
+
+        self.score(y_true, y_pred)
 
 
 def build_vocab(datafile):

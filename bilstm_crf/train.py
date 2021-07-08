@@ -2,7 +2,7 @@ import argparse
 import os
 import json
 import tensorflow as tf
-from .utils import generate_dataset, build_vocab
+from .utils import generate_dataset, build_vocab, NERF1Metrics
 from .model import BiLstmCRF
 from seqeval.metrics import classification_report
 import tensorflow_addons as tfa
@@ -65,6 +65,7 @@ def main():
     ckpt = tf.keras.callbacks.ModelCheckpoint(filepath=filepath, verbose=1, save_best_only=True,
                                               save_weights_only=True)
     early_stop = tf.keras.callbacks.EarlyStopping(patience=3, verbose=1)
+    # f1_callback = NERF1Metrics(id2label, validation_data=val_dataset)
 
     internal_model = BiLstmCRF(vocab_size, embedding_size, hidden_dim, label_size, dropout_rate)
     # inp = tf.keras.layers.Input(shape=[None], name='input')
@@ -103,7 +104,6 @@ def main():
             y_pred.append([id2label[t] for t in viterbi_path])
 
     print(classification_report(y_true, y_pred))
-
 
 
 if __name__ == "__main__":
