@@ -6,6 +6,7 @@ from .utils import generate_dataset, build_vocab, WarmUpSchedule, NERF1Metrics
 from .model import BertNER
 from seqeval.metrics import classification_report
 import tensorflow_addons as tfa
+from .optimization import create_optimizer
 
 
 def main():
@@ -15,7 +16,7 @@ def main():
     parser.add_argument('--dropout_rate', type=float, help='drop out rate', default=0.1)
     parser.add_argument('--lr', help='learning rate', default=5e-5)
     parser.add_argument('--model_dir', help='model dir')
-    parser.add_argument('--epoch', type=int, help='train epoch', default=3)
+    parser.add_argument('--epoch', type=int, help='train epoch', default=40)
     parser.add_argument('--version', type=str, help='bert version', default='bert-base-uncased')
     args = parser.parse_args()
     data_dir = args.data_dir
@@ -50,7 +51,8 @@ def main():
 
     train_dataset = generate_dataset(train_file, label, bert_version=bert_version, batch_size=batch_size)
     val_dataset = generate_dataset(val_file, label, bert_version=bert_version, batch_size=batch_size * 2, shuffle=False)
-    test_dataset = generate_dataset(test_file, label, bert_version=bert_version, batch_size=batch_size * 2, shuffle=False)
+    test_dataset = generate_dataset(test_file, label, bert_version=bert_version, batch_size=batch_size * 2,
+                                    shuffle=False)
 
     # create model
     label_size = len(label)
@@ -80,33 +82,29 @@ def main():
     step_per_epoch = 450
     warmup_steps = int(0.1 * step_per_epoch) * epoch
 
-    learning_rate_fn = tf.keras.optimizers.schedules.PolynomialDecay(initial_learning_rate=lr,
-                                                                     decay_steps=step_per_epoch,
-                                                                     end_learning_rate=0.0)
-    lr_schedule = WarmUpSchedule(lr, learning_rate_fn, warmup_steps)
-    opt2 = tfa.optimizers.AdamW(learning_rate=lr_schedule,
-                                weight_decay=0.01,
-                                beta_1=0.9,
-                                beta_2=0.999,
-                                epsilon=1e-8)
+    opt2 = create_optimizer(init_lr=lr,
+                                         num_train_steps=step_per_epoch * epoch,
+                                         num_warmup_steps=warmup_steps,
+                                         optimizer_type='adamw')
 
     train_dataset = train_dataset.cache().prefetch(tf.data.experimental.AUTOTUNE)
-    model.compile(optimizer=opt1)
-    model.fit(train_dataset, epochs=30, validation_data=val_dataset, validation_freq=1, verbose=1,
-              callbacks=[early_stop])
-    #
-    # # now tuning the whole model
-    # model.bert.trainable = True
-    # model.bert_finetune = True
-    # model.compile(optimizer=opt2)
-    #
-    # model.fit(train_dataset, epochs=epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
-    #           callbacks=[ckpt, early_stop])
-    #
-    # latest_ckpt = tf.train.latest_checkpoint(model_dir)
-    #
-    # model.load_weights(latest_ckpt).expect_partial()
-    # model.bert_finetune = False
+    #model.compile(optimizer=opt1)
+    #model.fit(train_dataset, epochs=20, validation_data=val_dataset, validation_freq=1, verbose=1,
+    #          callbacks=[early_stop])
+
+    # now tuning the whole model
+    model.bert.trainable = True
+    model.bert_finetune = True
+    model.compile(optimizer=opt2)
+
+    model.fit(train_dataset, epochs=epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
+              callbacks=[ckpt, early_stop])
+
+    latest_ckpt = tf.train.latest_checkpoint(model_dir)
+
+    model.load_weights(latest_ckpt).expect_partial()
+    model.bert_finetune = False
+    model.compile()
 
     y_true = []
     y_pred = []
@@ -120,8 +118,6 @@ def main():
             viterbi_path = viterbi_path.numpy()[1: seq_len - 1]
             y_true.append([id2label[t] for t, mask in zip(tag, label_mask) if mask])
             y_pred.append([id2label[t] for t, mask in zip(viterbi_path, label_mask) if mask])
-        # print(y_true)
-        # print(y_pred)
 
     print(classification_report(y_true, y_pred))
 
