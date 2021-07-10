@@ -86,7 +86,7 @@ def build_vocab(datafile):
     return vocab, labels
 
 
-def encode_file(datafile, labels, bert_version='bert-base-uncased'):
+def encode_file(datafile, labels, bert_version='bert-base-uncased', do_truecase=False):
     def gen():
         with open(datafile, 'r', encoding='utf-8') as f:
             text = f.read()
@@ -120,8 +120,8 @@ def encode_file(datafile, labels, bert_version='bert-base-uncased'):
     return gen
 
 
-def generate_dataset(datafile, labels, bert_version='bert-base-uncased', batch_size=32, shuffle=True):
-    encoded_seq = encode_file(datafile, labels, bert_version=bert_version)
+def generate_dataset(datafile, labels, bert_version='bert-base-uncased', batch_size=32, shuffle=True, do_truecase=False):
+    encoded_seq = encode_file(datafile, labels, bert_version=bert_version, do_truecase=do_truecase)
     dataset = tf.data.Dataset.from_generator(encoded_seq, output_shapes={'input_ids': [None],
                                                                          'token_type_ids': [None],
                                                                          'attention_mask': [None],

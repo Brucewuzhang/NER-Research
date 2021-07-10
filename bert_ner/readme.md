@@ -28,12 +28,13 @@ stage finetune the whole model
 
 
 #### # result of direct finetuning (train for 3 epoch is enough)
-      PER       0.97      0.97      0.97      1433
-      ORG       0.84      0.84      0.84      1237
-     MISC       0.69      0.73      0.71       608
-      LOC       0.88      0.93      0.90      1283
-
-micro avg       0.87      0.89      0.88      4561
-macro avg       0.87      0.89      0.88      4561
+| Type| precision  |  recall | f1-score |  support|
+|-----|------------|---------|----------|---------|
+   |   PER    |   0.97   |   0.97    |  0.97  |    1433|
+   |   ORG    |   0.84    |  0.84     | 0.84  |    1237|
+   |  MISC    |   0.69   |   0.73  |    0.71   |    608|
+ |     LOC    |   0.88    |  0.93   |   0.90   |   1283|
+|micro avg   |    0.87  |   0.89    |  0.88   |   4561|
+|macro avg    |   0.87   |   0.89   |   0.88   |   4561|
 
 

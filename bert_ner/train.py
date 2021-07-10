@@ -14,16 +14,19 @@ def main():
     parser.add_argument('--data_dir', help='data dir contain train/val/test files')
     parser.add_argument('--batch_size', type=int, help='batch size', default=32)
     parser.add_argument('--dropout_rate', type=float, help='drop out rate', default=0.1)
-    parser.add_argument('--lr', help='learning rate', default=5e-5)
+    parser.add_argument('--lr', type=float, help='learning rate', default=5e-5)
     parser.add_argument('--model_dir', help='model dir')
     parser.add_argument('--epoch', type=int, help='train epoch', default=40)
     parser.add_argument('--version', type=str, help='bert version', default='bert-base-uncased')
+    parser.add_argument('--truecase', action='store_true', help='whether to do truecase', default=False)
     args = parser.parse_args()
     data_dir = args.data_dir
     model_dir = args.model_dir
     batch_size = int(args.batch_size)
     dropout_rate = args.dropout_rate
     bert_version = args.version
+    truecase = args.truecase
+    print("bert version: {}".format(bert_version))
     lr = args.lr
     epoch = int(args.epoch)
     os.makedirs(model_dir, exist_ok=True)
@@ -49,10 +52,10 @@ def main():
 
     id2label = {v: k for k, v in label.items()}
 
-    train_dataset = generate_dataset(train_file, label, bert_version=bert_version, batch_size=batch_size)
-    val_dataset = generate_dataset(val_file, label, bert_version=bert_version, batch_size=batch_size * 2, shuffle=False)
+    train_dataset = generate_dataset(train_file, label, bert_version=bert_version, batch_size=batch_size, do_truecase=truecase)
+    val_dataset = generate_dataset(val_file, label, bert_version=bert_version, batch_size=batch_size * 2, shuffle=False, do_truecase=truecase)
     test_dataset = generate_dataset(test_file, label, bert_version=bert_version, batch_size=batch_size * 2,
-                                    shuffle=False)
+                                    shuffle=False, do_truecase=truecase)
 
     # create model
     label_size = len(label)
@@ -64,7 +67,7 @@ def main():
     # f1_callback = NERF1Metrics(id2label, validation_data=val_dataset)
 
     internal_model = BertNER(label_size, dropout_rate=dropout_rate, initializer_range=0.02,
-                             bert_version='bert-base-uncased')
+                             bert_version=bert_version)
 
     model = internal_model
     # first stage only train dense layer
