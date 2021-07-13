@@ -2,11 +2,11 @@ import argparse
 import os
 import json
 import tensorflow as tf
-from .utils import generate_dataset, build_vocab, WarmUpSchedule, NERF1Metrics
-from .model import BertNER
+from .utils import generate_dataset, build_vocab, NERF1Metrics
+from .model import BertBilstmCRF
 from seqeval.metrics import classification_report
 import tensorflow_addons as tfa
-from .optimization import create_optimizer
+from bert_ner.optimization import create_optimizer
 
 
 def main():
@@ -20,7 +20,8 @@ def main():
     parser.add_argument('--version', type=str, help='bert version', default='bert-base-uncased')
     parser.add_argument('--truecase', action='store_true', help='whether to do truecase', default=False)
     parser.add_argument('--max_len', type=int, help='whether to do truecase', default=512)
-
+    parser.add_argument('--hidden_size', type=int, help='lstm units number', default=32)
+    parser.add_argument('--two_stage', action='store_true', help='whether to do two stage training', default=False)
     args = parser.parse_args()
     data_dir = args.data_dir
     model_dir = args.model_dir
@@ -29,7 +30,8 @@ def main():
     bert_version = args.version
     truecase = args.truecase
     max_len = args.max_len
-
+    hidden_size = args.hidden_size
+    two_stage_training = args.two_stage
     print("bert version: {}".format(bert_version))
     lr = args.lr
     epoch = int(args.epoch)
@@ -72,8 +74,8 @@ def main():
     early_stop = tf.keras.callbacks.EarlyStopping(patience=1, verbose=1)
     # f1_callback = NERF1Metrics(id2label, validation_data=val_dataset)
 
-    internal_model = BertNER(label_size, dropout_rate=dropout_rate, initializer_range=0.02,
-                             bert_version=bert_version)
+    internal_model = BertBilstmCRF(hidden_size, label_size, dropout_rate=dropout_rate, initializer_range=0.02,
+                                   bert_version=bert_version)
 
     model = internal_model
     # first stage only train dense layer
@@ -86,48 +88,49 @@ def main():
         print(model.summary())
         # print(tf.keras.utils.plot_model(model))
 
-    opt1 = tf.keras.optimizers.Adam(1e-3)
+    train_dataset = train_dataset.cache().prefetch(tf.data.experimental.AUTOTUNE)
+
+    if two_stage_training:
+        opt1 = tf.keras.optimizers.Adam(1e-3)
+
+        model.compile(optimizer=opt1)
+        model.fit(train_dataset, epochs=10, validation_data=val_dataset, validation_freq=1, verbose=1,
+                  callbacks=[early_stop])
 
     step_per_epoch = 450
     warmup_steps = int(0.1 * step_per_epoch) * epoch
-
     opt2 = create_optimizer(init_lr=lr,
                             num_train_steps=step_per_epoch * epoch,
                             num_warmup_steps=warmup_steps,
                             optimizer_type='adamw')
 
-    train_dataset = train_dataset.cache().prefetch(tf.data.experimental.AUTOTUNE)
-    model.compile(optimizer=opt1)
-    model.fit(train_dataset, epochs=20, validation_data=val_dataset, validation_freq=1, verbose=1,
-              callbacks=[early_stop])
-
     # now tuning the whole model
-    # model.bert.trainable = True
-    # model.bert_finetune = True
-    # model.compile(optimizer=opt2)
-    #
-    # model.fit(train_dataset, epochs=epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
-    #           callbacks=[ckpt, early_stop])
-    #
-    # latest_ckpt = tf.train.latest_checkpoint(model_dir)
-    # model.load_weights(latest_ckpt).expect_partial()
+    model.bert.trainable = True
+    model.bert_finetune = True
+    model.compile(optimizer=opt2)
+
+    model.fit(train_dataset, epochs=epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
+              callbacks=[ckpt, early_stop])
+
+    latest_ckpt = tf.train.latest_checkpoint(model_dir)
+    model.load_weights(latest_ckpt).expect_partial()
 
     model.bert_finetune = False
     model.compile()
 
+    # evaluate the model
     y_true = []
     y_pred = []
     for it in test_dataset.take(-1):
         tags = it.pop('tag')
-        label_masks = it.pop('label_masks')
+        label_masks = it['label_masks']
         logits, seq_lens = model(it, training=False)
         for logit, seq_len, tag, label_mask in zip(logits, seq_lens, tags.numpy(), label_masks.numpy()):
-            viterbi_path = tf.argmax(logit, axis=-1)
-            # tag = tag[1:seq_len - 1]
-            # viterbi_path = viterbi_path.numpy()[1: seq_len - 1]
-            viterbi_path = viterbi_path.numpy()
-            y_true.append([id2label[t] for t, mask in zip(tag, label_mask) if mask])
-            y_pred.append([id2label[t] for t, mask in zip(viterbi_path, label_mask) if mask])
+            viterbi_path, _ = tfa.text.viterbi_decode(logit[:seq_len], model.transition_params)
+            tag = [t for t, flag in zip(tag, label_mask) if flag]
+            viterbi_path = viterbi_path[: seq_len]
+            y_true.append([id2label[t] for t in tag])
+            y_pred.append([id2label[t] for t in viterbi_path])
 
     print(classification_report(y_true, y_pred))
 

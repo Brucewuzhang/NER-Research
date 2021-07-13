@@ -18,6 +18,7 @@ def main():
     parser.add_argument('--lr', help='learning rate', default=1e-3)
     parser.add_argument('--model_dir', help='model dir')
     parser.add_argument('--epoch', type=int, help='train epoch', default=50)
+
     args = parser.parse_args()
     data_dir = args.data_dir
     model_dir = args.model_dir

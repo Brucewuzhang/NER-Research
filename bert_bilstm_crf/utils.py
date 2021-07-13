@@ -106,8 +106,6 @@ def encode_file(datafile, labels, bert_version='bert-base-uncased', do_truecase=
             label_masks = []
             for w, t in zip(ws, t_idx):
                 tokens = tokenizer.tokenize(w)
-                # we use the first subtoken to label its corresponding word, other subtokens are ignored when computing loss
-                # they are not ignored for computing the contextual representation
                 tags.extend([t] * len(tokens))
                 label_masks.extend([1] + [0] * (len(tokens) - 1))
             if tags:

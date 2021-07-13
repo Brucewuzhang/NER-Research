@@ -13,23 +13,41 @@ class BertBilstmCRF(tf.keras.Model):
         self.transition_params = tf.Variable(tf.random.uniform((n_labels, n_labels)))
         self.dense = tf.keras.layers.Dense(n_labels, kernel_initializer=tf.keras.initializers.TruncatedNormal(
             stddev=initializer_range))
+        self.bert_finetune = True
 
     def call(self, inputs, training=None, mask=None):
         tags = inputs.pop('tag', None)
-        masks = inputs['attention_mask']
-        text_lens = tf.math.reduce_sum(masks, axis=-1)
-        bert_output = self.bert(inputs, training=training)
+        label_masks = inputs.pop('label_masks', None)
+        # masks = inputs['attention_mask']
+
+        # length of words
+        text_lens = tf.math.reduce_sum(tf.cast(label_masks, tf.int32), axis=-1)
+        # text_lens = tf.math.reduce_sum(masks, axis=-1)
+        bert_output = self.bert(inputs, training=self.bert_finetune)
 
         drop_out = self.dropout(bert_output[0])
         lstm_out = self.bilstm(drop_out)
         logits = self.dense(lstm_out)
+
+        # transform logits, moving all labeled tokens to the front of each sequence,
+        # all labeled token logits will be moved to the front and other logits
+        # will be put to the back
+        cumsum = tf.math.cumsum(label_masks, axis=1)
+        arg_mask = tf.cast(tf.math.equal(label_masks, 0), label_masks.dtype) * 10000
+        sorted_idx = tf.argsort(cumsum + arg_mask)
+        batch_size = tf.shape(label_masks)[0]
+        l = tf.shape(label_masks)[1]
+        batch_idx = tf.tile(tf.reshape(tf.range(batch_size), (-1, 1)), (1, l))
+        gather_idx = tf.stack([batch_idx, sorted_idx], axis=-1)
+        logits = tf.gather_nd(logits, gather_idx)
+
         if tags is not None:
+            tags = tf.gather_nd(tags, gather_idx)
             log_likelihood, self.transition_params = tfa.text.crf_log_likelihood(logits,
                                                                                  tags,
                                                                                  text_lens,
                                                                                  self.transition_params)
-            loss = tf.math.reduce_mean(log_likelihood)
+            loss = -tf.math.reduce_mean(log_likelihood)
             self.add_loss(loss)
 
         return logits, text_lens
-
