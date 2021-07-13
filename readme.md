@@ -12,7 +12,7 @@ with two different optimizers.
 
 
 Algorithms implemented:
-* bilstm crf
+### bilstm crf
     
     python -m bilstm_crf.train --data_dir /path/to/data --model_dir /path/to/save/model --epoch 50
 
@@ -27,7 +27,7 @@ results on conll2003 dataset
 |micro avg  |     0.68  |    0.60   |   0.64  |    5648 |
 |macro avg  |     0.68  |    0.60   |   0.64  |    5648 |
 
-* Bert + dense layer
+### Bert + dense layer
 
     python -m bert_ner.train --data_dir /path/to/data --model_dir /path/to/saved/model --epoch 3
 
@@ -42,7 +42,7 @@ results on conll2003 dataset
 |micro avg |      0.90  |    0.91   |   0.90  |    5648|
 |macro avg  |     0.90  |    0.91  |    0.90 |     5648|
 
-* Bert + Bi-LSTM CRF
+### Bert + Bi-LSTM CRF
 
     python -m bert_bilstm_crf.train --data_dir /path/to/data --model_dir /path/to/save/model --epoch 3 --hidden_size 32 --two_stage
         
