@@ -7,11 +7,11 @@ with two different optimizers.
 
 ## Requirements:
 * Tensorflow 2 and other python packages
-* with a GeForce RTX 2080 Ti gpu, each training takes less than 20 minutes
+* python >=3.6
 
+## My current best result on conll2003: f1: 91.9
 
-
-Algorithms implemented:
+## Algorithms implemented:
 ### bilstm crf
     
     python -m bilstm_crf.train --data_dir /path/to/data --model_dir /path/to/save/model --epoch 50
@@ -45,7 +45,9 @@ results on conll2003 dataset
 ### Bert + Bi-LSTM CRF
 
     python -m bert_bilstm_crf.train --data_dir /path/to/data --model_dir /path/to/save/model --epoch 3 --hidden_size 32 --two_stage
-        
+or 
+
+    python -m bert_bilstm_crf.train --data_dir /path/to/data --model_dir /path/to/save/model --epoch 3 --hidden_size 32 --two_stage --dynamic_batch_size 1800
 
 results on conll2003 dataset
 
@@ -57,4 +59,34 @@ results on conll2003 dataset
  |     ORG  |     0.89   |   0.88  |    0.89 |     1661|
 |micro avg  |     0.91   |   0.91  |    0.91  |    5648|
 |macro avg  |     0.91   |   0.91  |    0.91  |    5648|
+
+
+### Roberta + dense layer
+
+| Type| precision  |  recall | f1-score |  support|
+|:-----:|------------|---------|----------|---------|
+   |   ORG   |   0.882   |  0.910   |  0.896   |   1661|
+   |   LOC   |   0.928   |  0.933   |  0.931   |   1668|
+  |    PER   |   0.962  |   0.970  |   0.966  |    1617|
+  |   MISC   |   0.768  |   0.823  |   0.795 |      702|
+|micro avg  |    0.903  |   0.924  |   0.913  |    5648|
+|macro avg  |    0.904  |   0.924  |   0.914  |    5648|
+
+
+### Roberta + bilstm layer
+
+    python -m bert_bilstm_crf.train --data_dir ../NER/conll2003 --model_dir ../NER/BertBiLstm --version roberta-base --two_stage --epoch 4
+
+| Type| precision  |  recall | f1-score |  support|
+|:-----:|------------|---------|----------|---------|
+|ORG    |  0.885  |  0.926   |  0.905  |    1661|
+ |    MISC  |    0.783  |   0.813   |  0.798   |    702|
+ |     PER   |   0.975   |  0.960   |  0.968   |   1617|
+ |     LOC   |   0.939   |  0.937   |  0.938    |  1668|
+|micro avg  |    0.913  |   0.925  |   0.919    |  5648|
+|macro avg   |   0.914   |  0.925   |  0.919   |   5648|
+
+
+todo: Like reproted in BERT, use the document information in the training data?
+
 

@@ -3,7 +3,7 @@ import os
 import json
 import tensorflow as tf
 from .utils import generate_dataset, build_vocab, WarmUpSchedule, NERF1Metrics
-from .model import BertNER
+from .model import BertNER, BertFeatureExtractionNER
 from seqeval.metrics import classification_report
 import tensorflow_addons as tfa
 from .optimization import create_optimizer
@@ -15,10 +15,13 @@ def main():
     parser.add_argument('--batch_size', type=int, help='batch size', default=32)
     parser.add_argument('--dropout_rate', type=float, help='drop out rate', default=0.1)
     parser.add_argument('--lr', type=float, help='learning rate', default=5e-5)
+    parser.add_argument('--lr1', type=float, help='learning rate', default=1e-3)
     parser.add_argument('--model_dir', help='model dir')
     parser.add_argument('--epoch', type=int, help='train epoch', default=3)
     parser.add_argument('--version', type=str, help='bert version', default='bert-base-uncased')
     parser.add_argument('--truecase', action='store_true', help='whether to do truecase', default=False)
+    parser.add_argument('--feature_extraction', action='store_true', help='whether to use BertFeatureExtractionNER',
+                        default=False)
     parser.add_argument('--max_len', type=int, help='whether to do truecase', default=512)
 
     args = parser.parse_args()
@@ -29,9 +32,12 @@ def main():
     bert_version = args.version
     truecase = args.truecase
     max_len = args.max_len
+    feature_extraction = args.feature_extraction
+    print("Using bert as feature extractor? {}".format(feature_extraction))
 
     print("bert version: {}".format(bert_version))
     lr = args.lr
+    lr1 = args.lr1
     epoch = int(args.epoch)
     os.makedirs(model_dir, exist_ok=True)
 
@@ -72,10 +78,12 @@ def main():
     early_stop = tf.keras.callbacks.EarlyStopping(patience=1, verbose=1)
     # f1_callback = NERF1Metrics(id2label, validation_data=val_dataset)
 
-    internal_model = BertNER(label_size, dropout_rate=dropout_rate, initializer_range=0.02,
-                             bert_version=bert_version)
-
-    model = internal_model
+    if not feature_extraction:
+        model = BertNER(label_size, dropout_rate=dropout_rate, initializer_range=0.02,
+                        bert_version=bert_version)
+    else:
+        model = BertFeatureExtractionNER(label_size, dropout_rate=dropout_rate, initializer_range=0.02,
+                                         bert_version=bert_version)
     # first stage only train dense layer
     model.bert.trainable = False
     model.bert_finetune = False
@@ -86,9 +94,9 @@ def main():
         print(model.summary())
         # print(tf.keras.utils.plot_model(model))
 
-    opt1 = tf.keras.optimizers.Adam(1e-3)
+    opt1 = tf.keras.optimizers.Adam(lr1)
 
-    step_per_epoch = 450
+    step_per_epoch = 14000 // batch_size
     warmup_steps = int(0.1 * step_per_epoch) * epoch
 
     opt2 = create_optimizer(init_lr=lr,
@@ -98,19 +106,25 @@ def main():
 
     train_dataset = train_dataset.cache().prefetch(tf.data.experimental.AUTOTUNE)
     model.compile(optimizer=opt1)
-    model.fit(train_dataset, epochs=20, validation_data=val_dataset, validation_freq=1, verbose=1,
+
+    if feature_extraction:
+        stage1_epoch = 4
+    else:
+        stage1_epoch = 20
+    model.fit(train_dataset, epochs=stage1_epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
               callbacks=[early_stop])
 
     # now tuning the whole model
-    # model.bert.trainable = True
-    # model.bert_finetune = True
-    # model.compile(optimizer=opt2)
-    #
-    # model.fit(train_dataset, epochs=epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
-    #           callbacks=[ckpt, early_stop])
-    #
-    # latest_ckpt = tf.train.latest_checkpoint(model_dir)
-    # model.load_weights(latest_ckpt).expect_partial()
+    if not feature_extraction:
+        model.bert.trainable = True
+        model.bert_finetune = True
+        model.compile(optimizer=opt2)
+
+        model.fit(train_dataset, epochs=epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
+                  callbacks=[ckpt, early_stop])
+
+        latest_ckpt = tf.train.latest_checkpoint(model_dir)
+        model.load_weights(latest_ckpt).expect_partial()
 
     model.bert_finetune = False
     model.compile()
@@ -123,13 +137,11 @@ def main():
         logits, seq_lens = model(it, training=False)
         for logit, seq_len, tag, label_mask in zip(logits, seq_lens, tags.numpy(), label_masks.numpy()):
             viterbi_path = tf.argmax(logit, axis=-1)
-            # tag = tag[1:seq_len - 1]
-            # viterbi_path = viterbi_path.numpy()[1: seq_len - 1]
             viterbi_path = viterbi_path.numpy()
             y_true.append([id2label[t] for t, mask in zip(tag, label_mask) if mask])
             y_pred.append([id2label[t] for t, mask in zip(viterbi_path, label_mask) if mask])
 
-    print(classification_report(y_true, y_pred))
+    print(classification_report(y_true, y_pred, digits=3))
 
 
 if __name__ == "__main__":

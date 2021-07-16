@@ -1,5 +1,5 @@
 import tensorflow as tf
-from transformers import BertTokenizer
+from transformers import RobertaTokenizer
 from seqeval.metrics import classification_report
 
 
@@ -38,39 +38,6 @@ class NERF1Metrics(tf.keras.callbacks.Callback):
         self.score(y_true, y_pred)
 
 
-class WarmUpSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
-  """Applys a warmup schedule on a given learning rate decay schedule."""
-
-  def __init__(
-      self,
-      initial_learning_rate,
-      decay_schedule_fn,
-      warmup_steps,
-      power=1.0,
-      name=None):
-    super(WarmUpSchedule, self).__init__()
-    self.initial_learning_rate = initial_learning_rate
-    self.warmup_steps = warmup_steps
-    self.power = power
-    self.decay_schedule_fn = decay_schedule_fn
-    self.name = name
-
-  def __call__(self, step):
-    with tf.name_scope(self.name or 'WarmUp') as name:
-      # Implements polynomial warmup. i.e., if global_step < warmup_steps, the
-      # learning rate will be `global_step/num_warmup_steps * init_lr`.
-      global_step_float = tf.cast(step, tf.float32)
-      warmup_steps_float = tf.cast(self.warmup_steps, tf.float32)
-      warmup_percent_done = global_step_float / warmup_steps_float
-      warmup_learning_rate = (
-          self.initial_learning_rate *
-          tf.math.pow(warmup_percent_done, self.power))
-      return tf.cond(global_step_float < warmup_steps_float,
-                     lambda: warmup_learning_rate,
-                     lambda: self.decay_schedule_fn(step),
-                     name=name)
-
-
 def build_vocab(datafile):
     vocab = {'<pad>': 0, '<unknown>': 1}
     labels = {}
@@ -86,12 +53,12 @@ def build_vocab(datafile):
     return vocab, labels
 
 
-def encode_file(datafile, labels, bert_version='bert-base-uncased', do_truecase=False, max_len=None):
+def encode_file(datafile, labels, bert_version='roberta-base', do_truecase=False, max_len=None):
     def gen():
         with open(datafile, 'r', encoding='utf-8') as f:
             text = f.read()
 
-        tokenizer = BertTokenizer.from_pretrained(bert_version)
+        tokenizer = RobertaTokenizer.from_pretrained(bert_version)
         O_label = labels['O']
 
         seqs = text.split('\n\n')
@@ -104,7 +71,9 @@ def encode_file(datafile, labels, bert_version='bert-base-uncased', do_truecase=
             t_idx = [labels[e[-1]] for e in entries]
             tags = []
             label_masks = []
-            for w, t in zip(ws, t_idx):
+            for i, (w, t) in enumerate(zip(ws, t_idx)):
+                if i != 0:
+                    w = ' ' + w
                 tokens = tokenizer.tokenize(w)
                 # we use the first subtoken to label its corresponding word, other subtokens are ignored when computing loss
                 # they are not ignored for computing the contextual representation
@@ -132,17 +101,14 @@ def generate_dataset(datafile, labels, bert_version='bert-base-uncased', batch_s
                      shuffle=True, do_truecase=False, max_len=None):
     encoded_seq = encode_file(datafile, labels, bert_version=bert_version, do_truecase=do_truecase, max_len=max_len)
     dataset = tf.data.Dataset.from_generator(encoded_seq, output_shapes={'input_ids': [None],
-                                                                         'token_type_ids': [None],
                                                                          'attention_mask': [None],
                                                                          "tag": [None],
                                                                          'label_masks': [None]},
                                              output_types={'input_ids': tf.int32,
-                                                           'token_type_ids': tf.int32,
                                                            'attention_mask': tf.int32,
                                                            "tag": tf.int32,
                                                            'label_masks': tf.int32})
     dataset = dataset.padded_batch(batch_size, padded_shapes={"tag": [None], 'input_ids': [None],
-                                                              'token_type_ids': [None],
                                                               'attention_mask': [None],
                                                               'label_masks': [None]})
     if shuffle:

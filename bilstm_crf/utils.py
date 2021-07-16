@@ -65,7 +65,7 @@ def encode_file(datafile, vocab: dict, labels: dict):
         for seq in seqs:
             entries = [e.split(' ') for e in seq if e]
             w_idx = [vocab.get(e[0].lower(), 1) for e in entries]
-            t_idx = [labels[e[3]] for e in entries]
+            t_idx = [labels[e[-1]] for e in entries]
             if w_idx:
                 # yield {"input": w_idx, "tag": t_idx}
                 yield w_idx, t_idx
