@@ -237,7 +237,7 @@ def generate_dataset(datafile, labels, bert_version='bert-base-uncased', batch_s
     dataset = tf.data.Dataset.from_generator(encoded_seq, output_shapes=padded_shapes,
                                              output_types=output_types)
     if shuffle:
-        dataset = dataset.shuffle(buffer_size=200_000, reshuffle_each_iteration=True)
+        dataset = dataset.shuffle(buffer_size=50_000, reshuffle_each_iteration=True)
 
     if dynamic_batch is not None:
         batch_config = batching_scheme(dynamic_batch, max_length=max_len,

@@ -146,7 +146,7 @@ def generate_dataset(datafile, labels, bert_version='bert-base-uncased', batch_s
                                                               'attention_mask': [None],
                                                               'label_masks': [None]})
     if shuffle:
-        dataset = dataset.shuffle(buffer_size=200_000, reshuffle_each_iteration=True)
+        dataset = dataset.shuffle(buffer_size=50_000, reshuffle_each_iteration=True)
     dataset = dataset
     return dataset
 
