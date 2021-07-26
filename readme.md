@@ -16,6 +16,12 @@ Create the conda env I used:
 ## My current best result on conll2003: f1: 91.9
 
 ## Algorithms implemented:
+* Machine Reading Comprehension based NER classification
+* Bert|RoBerta + bilstm +crf
+* Bert|RoBerta + dense
+* bilstm +crf
+
+
 ### bilstm crf
     
     python -m bilstm_crf.train --data_dir /path/to/data --model_dir /path/to/save/model --epoch 50

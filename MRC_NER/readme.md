@@ -9,4 +9,7 @@ training command:
     
     
 Result:
-    
+
+* direct finetuning the whole model: micro precision: 0.8899, micro recall： 0.9024, micro f1: 0.8961
+
+* two stage training: micro precision: 0.8977, micro recall： 0.9043, micro f1: 0.9010

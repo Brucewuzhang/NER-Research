@@ -94,13 +94,12 @@ def main():
     train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
     model.compile(optimizer=opt1)
 
-    # if feature_extraction:
-    #     raise Exception("Not implemented error")
-    # else:
-    #     # stage1_epoch = 20
-    #     stage1_epoch = 10
-    # model.fit(train_dataset, epochs=stage1_epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
-    #           callbacks=[early_stop])
+    if feature_extraction:
+        raise Exception("Not implemented error")
+    else:
+        stage1_epoch = 10
+    model.fit(train_dataset, epochs=stage1_epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
+              callbacks=[early_stop])
 
     # now tuning the whole model
     if not feature_extraction:
@@ -112,6 +111,7 @@ def main():
                   callbacks=[ckpt, early_stop])
 
         latest_ckpt = tf.train.latest_checkpoint(model_dir)
+
         model.load_weights(latest_ckpt).expect_partial()
     else:
         raise Exception("Not implemented error")
