@@ -6,8 +6,12 @@ with two different optimizers.
 
 
 ## Requirements:
-* Tensorflow 2 and other python packages
+* Tensorflow 2.2 and other python packages
 * python >=3.6
+
+Create the conda env I used:
+
+    conda env create -f conda_env.yml
 
 ## My current best result on conll2003: f1: 91.9
 

@@ -1,22 +1,23 @@
 import argparse
 import os
-import json
 import tensorflow as tf
-from .utils import generate_dataset, build_vocab
+from .utils import generate_dataset
 from .model import MRCNER
-from seqeval.metrics import classification_report
-import tensorflow_addons as tfa
 from bert_ner.optimization import create_optimizer
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', help='data dir contain train/val/test files')
+    parser.add_argument('--data_dir', help='data dir contain train/val/test files', required=True)
     parser.add_argument('--batch_size', type=int, help='batch size', default=32)
     parser.add_argument('--dropout_rate', type=float, help='drop out rate', default=0.1)
+    parser.add_argument('--match_dropout_rate', type=float, help='span drop out rate', default=0.3)
+    parser.add_argument('--start_loss_weight', type=float, help='start weight loss', default=1.0)
+    parser.add_argument('--end_loss_weight', type=float, help='end weight loss', default=1.0)
+    parser.add_argument('--match_loss_weight', type=float, help='match loss weight', default=0.1)
     parser.add_argument('--lr', type=float, help='learning rate', default=5e-5)
     parser.add_argument('--lr1', type=float, help='learning rate', default=1e-3)
-    parser.add_argument('--model_dir', help='model dir')
+    parser.add_argument('--model_dir', help='model dir', required=True)
     parser.add_argument('--epoch', type=int, help='train epoch', default=3)
     parser.add_argument('--version', type=str, help='bert version', default='bert-base-uncased')
     parser.add_argument('--truecase', action='store_true', help='whether to do truecase', default=False)
@@ -29,6 +30,10 @@ def main():
     model_dir = args.model_dir
     batch_size = int(args.batch_size)
     dropout_rate = args.dropout_rate
+    match_dropout_rate = args.match_dropout_rate
+    start_loss_weight = args.start_loss_weight
+    end_loss_weight = args.end_loss_weight
+    match_loss_weight = args.match_loss_weight
     bert_version = args.version
     truecase = args.truecase
     max_len = args.max_len
@@ -45,40 +50,22 @@ def main():
     val_file = os.path.join(data_dir, 'eng.testa')
     test_file = os.path.join(data_dir, 'eng.testb')
 
-    vocab_file = os.path.join(data_dir, 'vocab.json')
-    label_file = os.path.join(data_dir, 'label.json')
-    if os.path.exists(vocab_file) and os.path.exists(label_file):
+    train_dataset = generate_dataset(train_file, bert_version=bert_version, batch_size=batch_size, max_len=max_len)
+    val_dataset = generate_dataset(val_file, bert_version=bert_version, batch_size=batch_size,
+                                   shuffle=False, max_len=10_000)
 
-        with open(label_file, 'r', encoding='utf-8') as f:
-            label = json.load(f)
-
-    else:
-        vocab, label = build_vocab(train_file)
-        with open(vocab_file, 'w', encoding='utf-8') as f:
-            json.dump(vocab, f)
-
-        with open(label_file, 'w', encoding='utf-8') as f:
-            json.dump(label, f)
-
-    id2label = {v: k for k, v in label.items()}
-
-    train_dataset = generate_dataset(train_file, label, bert_version=bert_version, batch_size=batch_size,
-                                     do_truecase=truecase, max_len=max_len)
-    val_dataset = generate_dataset(val_file, label, bert_version=bert_version, batch_size=batch_size * 2, shuffle=False,
-                                   do_truecase=truecase, max_len=None)
-    test_dataset = generate_dataset(test_file, label, bert_version=bert_version, batch_size=batch_size * 2,
-                                    shuffle=False, do_truecase=truecase, max_len=None)
+    test_dataset = generate_dataset(test_file, bert_version=bert_version, batch_size=batch_size,
+                                    shuffle=False, max_len=10_000)
 
     # create model
-    label_size = len(label)
-
     filepath = os.path.join(model_dir, 'model.ckpt-{epoch}')
     ckpt = tf.keras.callbacks.ModelCheckpoint(filepath=filepath, verbose=1, save_best_only=True,
                                               save_weights_only=True)
     early_stop = tf.keras.callbacks.EarlyStopping(patience=1, verbose=1)
 
-    model = MRCNER(dropout_rate=dropout_rate, initializer_range=0.02,
-                   bert_version=bert_version)
+    model = MRCNER(dropout_rate=dropout_rate, match_dropout_rate=match_dropout_rate, initializer_range=0.02,
+                   bert_version=bert_version, start_loss_weight=start_loss_weight,
+                   end_loss_weight=end_loss_weight, match_loss_weight=match_loss_weight)
 
     # first stage only train dense layer
     model.bert.trainable = False
@@ -92,7 +79,11 @@ def main():
 
     opt1 = tf.keras.optimizers.Adam(lr1)
 
-    step_per_epoch = 14000 // batch_size
+    n_batches = 0
+    for _ in train_dataset.take(-1):
+        n_batches += 1
+
+    step_per_epoch = int(n_batches * 1.01)
     warmup_steps = int(0.1 * step_per_epoch) * epoch
 
     opt2 = create_optimizer(init_lr=lr,
@@ -100,15 +91,16 @@ def main():
                             num_warmup_steps=warmup_steps,
                             optimizer_type='adamw')
 
-    train_dataset = train_dataset.cache().prefetch(tf.data.experimental.AUTOTUNE)
+    train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
     model.compile(optimizer=opt1)
 
-    if feature_extraction:
-        stage1_epoch = 4
-    else:
-        stage1_epoch = 20
-    model.fit(train_dataset, epochs=stage1_epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
-              callbacks=[early_stop])
+    # if feature_extraction:
+    #     raise Exception("Not implemented error")
+    # else:
+    #     # stage1_epoch = 20
+    #     stage1_epoch = 10
+    # model.fit(train_dataset, epochs=stage1_epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
+    #           callbacks=[early_stop])
 
     # now tuning the whole model
     if not feature_extraction:
@@ -121,23 +113,38 @@ def main():
 
         latest_ckpt = tf.train.latest_checkpoint(model_dir)
         model.load_weights(latest_ckpt).expect_partial()
+    else:
+        raise Exception("Not implemented error")
 
     model.bert_finetune = False
     model.compile()
 
-    y_true = []
-    y_pred = []
-    for it in test_dataset.take(-1):
-        tags = it.pop('tag')
-        label_masks = it.pop('label_masks')
-        logits, seq_lens = model(it, training=False)
-        for logit, seq_len, tag, label_mask in zip(logits, seq_lens, tags.numpy(), label_masks.numpy()):
-            viterbi_path = tf.argmax(logit, axis=-1)
-            viterbi_path = viterbi_path.numpy()
-            y_true.append([id2label[t] for t, mask in zip(tag, label_mask) if mask])
-            y_pred.append([id2label[t] for t, mask in zip(viterbi_path, label_mask) if mask])
+    tp_all = 0
+    fp_all = 0
+    fn_all = 0
+    for example in test_dataset:
+        match_labels = example.pop('match_labels')
+        match_logits = model(example, training=False)
+        match_pred = match_logits > 0
+        match_labels = tf.cast(match_labels, tf.bool)
 
-    print(classification_report(y_true, y_pred, digits=3))
+        tp = tf.math.logical_and(match_labels, match_pred)
+        tp = tf.reduce_sum(tf.cast(tp, dtype=tf.float32)).numpy()
+
+        fp = tf.math.logical_and(tf.math.logical_not(match_labels), match_pred)
+        fp = tf.reduce_sum(tf.cast(fp, dtype=tf.float32)).numpy()
+
+        fn = tf.math.logical_and(match_labels, tf.math.logical_not(match_pred))
+        fn = tf.reduce_sum(tf.cast(fn, dtype=tf.float32)).numpy()
+
+        tp_all += tp
+        fp_all += fp
+        fn_all += fn
+
+    precision = tp_all / (tp_all + fp_all + 1e-10)
+    recall = tp_all / (tp_all + fn_all + 1e-10)
+    f1 = 2 * precision * recall / (precision + recall + 1e-10)
+    print("micro precision: {:.4f}, micro recall： {:.4f}, micro f1: {:.4f}".format(precision, recall, f1))
 
 
 if __name__ == "__main__":

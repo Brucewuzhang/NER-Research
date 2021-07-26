@@ -33,7 +33,7 @@ def encode_file(datafile, bert_version='bert-base-uncased', max_len=512):
                 labels[k] = {'start': [],
                              'end': []}
 
-            # todo: get start and end
+            # get start and end pos
             entries = [e.split(' ') for e in seq if e]
             ws = [e[0] for e in entries]
             ts = [e[-1] for e in entries]
@@ -101,11 +101,11 @@ def encode_file(datafile, bert_version='bert-base-uncased', max_len=512):
 
             if label_masks:
                 for k, v in labels.items():
-                    assert len(v['start']) == len(v['end'])
+                    # assert len(v['start']) == len(v['end'])
                     inputs = tokenizer(query[k], " ".join(ws))
                     inputs['label_masks'] = v['label_masks']
                     seq_len = len(v['label_masks'])
-                    assert seq_len == len(inputs['input_ids'])
+                    # assert seq_len == len(inputs['input_ids'])
                     inputs['start_labels'] = [0] * seq_len
                     for i in v['start']:
                         inputs['start_labels'][i] = 1
@@ -161,7 +161,7 @@ def generate_dataset(datafile, bert_version='bert-base-uncased', batch_size=32,
                                              output_types=data_types)
     dataset = dataset.padded_batch(batch_size, padded_shapes=data_shapes)
     if shuffle:
-        dataset = dataset.shuffle(buffer_size=50_000, reshuffle_each_iteration=True)
+        dataset = dataset.shuffle(buffer_size=600, reshuffle_each_iteration=True)
     dataset = dataset
     return dataset
 
@@ -176,5 +176,5 @@ if __name__ == '__main__':
     #     break
 
     dataset = generate_dataset(datafile, batch_size=32, shuffle=False)
-    for e in dataset.take(-1):
+    for e in dataset.take(1):
         print(e)
