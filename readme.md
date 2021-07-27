@@ -22,20 +22,31 @@ Create the conda env I used:
 * bilstm +crf
 
 
-### bilstm crf
-    
-    python -m bilstm_crf.train --data_dir /path/to/data --model_dir /path/to/save/model --epoch 50
+### Roberta + bilstm layer
 
-results on conll2003 dataset
+    python -m bert_bilstm_crf.train --data_dir ../NER/conll2003 --model_dir ../NER/BertBiLstm --version roberta-base --two_stage --epoch 4
 
-|  Type|precision|recall|f1-score|support|
-|:---:|---------|------|--------|-------|
-|  LOC|0.67|0.69|0.68|1668|
-|  MISC|       0.70  |    0.63 |     0.66   |    702|
- |     PER |      0.74  |    0.51    |  0.61 |     1617|
- |     ORG  |     0.64  |    0.58     | 0.61  |    1661 |
-|micro avg  |     0.68  |    0.60   |   0.64  |    5648 |
-|macro avg  |     0.68  |    0.60   |   0.64  |    5648 |
+| Type| precision  |  recall | f1-score |  support|
+|:-----:|------------|---------|----------|---------|
+|ORG    |  0.885  |  0.926   |  0.905  |    1661|
+ |    MISC  |    0.783  |   0.813   |  0.798   |    702|
+ |     PER   |   0.975   |  0.960   |  0.968   |   1617|
+ |     LOC   |   0.939   |  0.937   |  0.938    |  1668|
+|micro avg  |    0.913  |   0.925  |   0.919    |  5648|
+|macro avg   |   0.914   |  0.925   |  0.919   |   5648|
+
+
+### Roberta + dense layer
+
+| Type| precision  |  recall | f1-score |  support|
+|:-----:|------------|---------|----------|---------|
+   |   ORG   |   0.882   |  0.910   |  0.896   |   1661|
+   |   LOC   |   0.928   |  0.933   |  0.931   |   1668|
+  |    PER   |   0.962  |   0.970  |   0.966  |    1617|
+  |   MISC   |   0.768  |   0.823  |   0.795 |      702|
+|micro avg  |    0.903  |   0.924  |   0.913  |    5648|
+|macro avg  |    0.904  |   0.924  |   0.914  |    5648|
+
 
 ### Bert + dense layer
 
@@ -71,30 +82,26 @@ results on conll2003 dataset
 |macro avg  |     0.91   |   0.91  |    0.91  |    5648|
 
 
-### Roberta + dense layer
+### MRC NER: roberta-base + bilstm span feature
 
-| Type| precision  |  recall | f1-score |  support|
-|:-----:|------------|---------|----------|---------|
-   |   ORG   |   0.882   |  0.910   |  0.896   |   1661|
-   |   LOC   |   0.928   |  0.933   |  0.931   |   1668|
-  |    PER   |   0.962  |   0.970  |   0.966  |    1617|
-  |   MISC   |   0.768  |   0.823  |   0.795 |      702|
-|micro avg  |    0.903  |   0.924  |   0.913  |    5648|
-|macro avg  |    0.904  |   0.924  |   0.914  |    5648|
+* micro precision: micro precision: 0.9159, micro recall： 0.9105, micro f1: 0.9132
 
 
-### Roberta + bilstm layer
 
-    python -m bert_bilstm_crf.train --data_dir ../NER/conll2003 --model_dir ../NER/BertBiLstm --version roberta-base --two_stage --epoch 4
+### bilstm crf
+    
+    python -m bilstm_crf.train --data_dir /path/to/data --model_dir /path/to/save/model --epoch 50
 
-| Type| precision  |  recall | f1-score |  support|
-|:-----:|------------|---------|----------|---------|
-|ORG    |  0.885  |  0.926   |  0.905  |    1661|
- |    MISC  |    0.783  |   0.813   |  0.798   |    702|
- |     PER   |   0.975   |  0.960   |  0.968   |   1617|
- |     LOC   |   0.939   |  0.937   |  0.938    |  1668|
-|micro avg  |    0.913  |   0.925  |   0.919    |  5648|
-|macro avg   |   0.914   |  0.925   |  0.919   |   5648|
+results on conll2003 dataset
+
+|  Type|precision|recall|f1-score|support|
+|:---:|---------|------|--------|-------|
+|  LOC|0.67|0.69|0.68|1668|
+|  MISC|       0.70  |    0.63 |     0.66   |    702|
+ |     PER |      0.74  |    0.51    |  0.61 |     1617|
+ |     ORG  |     0.64  |    0.58     | 0.61  |    1661 |
+|micro avg  |     0.68  |    0.60   |   0.64  |    5648 |
+|macro avg  |     0.68  |    0.60   |   0.64  |    5648 |
 
 
 todo: Like reproted in BERT, use the document information in the training data?

@@ -1,5 +1,5 @@
 import tensorflow as tf
-from transformers import BertTokenizer
+from transformers import BertTokenizer, RobertaTokenizer, AlbertTokenizer
 
 query = {"ORG": "organization entities are limited to named corporate, governmental, or other organizational entities.",
          "PER": "person entities are named persons or family.",
@@ -9,13 +9,43 @@ query = {"ORG": "organization entities are limited to named corporate, governmen
 
 def encode_file(datafile, bert_version='bert-base-uncased', max_len=512):
     """generate data for flat ner e.g. conll2003, nested ner needs revision"""
-    tokenizer = BertTokenizer.from_pretrained(bert_version)
+    if 'roberta' in bert_version:
+        tokenizer = RobertaTokenizer.from_pretrained(bert_version)
+        add_space = ' '
 
-    query_len = {}
-    for k, v in query.items():
-        query_len[k] = len(tokenizer(v)['input_ids'])
+        def tokenize(s1, s2):
+            return tokenizer(s1 + ' ' + s2)
 
-    end_token_id = tokenizer._convert_token_to_id('[SEP]')
+        end_token_id = tokenizer.eos_token_id
+
+        query_len = {}
+        for k, v in query.items():
+            query_len[k] = len(tokenizer(v)['input_ids']) - 1
+    elif 'albert' in bert_version:
+        tokenizer = AlbertTokenizer.from_pretrained(bert_version)
+        add_space = ''
+
+        def tokenize(s1, s2):
+            return tokenizer(s1, s2)
+
+        end_token_id = tokenizer._convert_token_to_id('[SEP]')
+
+        query_len = {}
+        for k, v in query.items():
+            query_len[k] = len(tokenizer(v)['input_ids'])
+
+    else:
+        tokenizer = BertTokenizer.from_pretrained(bert_version)
+        add_space = ''
+
+        def tokenize(s1, s2):
+            return tokenizer(s1, s2)
+
+        end_token_id = tokenizer._convert_token_to_id('[SEP]')
+
+        query_len = {}
+        for k, v in query.items():
+            query_len[k] = len(tokenizer(v)['input_ids'])
 
     def gen():
         with open(datafile, 'r', encoding='utf-8') as f:
@@ -41,6 +71,7 @@ def encode_file(datafile, bert_version='bert-base-uncased', max_len=512):
             n_words = len(ws)
             curr_idx = 0
             for i, (w, t) in enumerate(zip(ws, ts)):
+                w = add_space + w
                 tokens = tokenizer.tokenize(w)
                 l = len(tokens)
                 # we use the first subtoken to label its corresponding word, other subtokens are ignored when computing loss
@@ -52,10 +83,10 @@ def encode_file(datafile, bert_version='bert-base-uncased', max_len=512):
                     if i == 0:
                         labels[cat]['start'].append(curr_idx)
                         if n_words > 1:
-                            if ts[i+1] == 'O':
+                            if ts[i + 1] == 'O':
                                 labels[cat]['end'].append(curr_idx)
                             else:
-                                b_or_i_next, cat_next = ts[i+1].split('-')
+                                b_or_i_next, cat_next = ts[i + 1].split('-')
                                 if b_or_i_next == 'B' or cat != cat_next:
                                     labels[cat]['end'].append(curr_idx)
                         else:
@@ -64,7 +95,7 @@ def encode_file(datafile, bert_version='bert-base-uncased', max_len=512):
 
                     elif i == n_words - 1:
                         labels[cat]['end'].append(curr_idx)
-                        if ts[i-1] == 'O':
+                        if ts[i - 1] == 'O':
                             labels[cat]['start'].append(curr_idx)
                         else:
                             b_or_i_prev, cat_prev = ts[i - 1].split('-')
@@ -102,7 +133,8 @@ def encode_file(datafile, bert_version='bert-base-uncased', max_len=512):
             if label_masks:
                 for k, v in labels.items():
                     # assert len(v['start']) == len(v['end'])
-                    inputs = tokenizer(query[k], " ".join(ws))
+                    # todo: roberta didn't do english tokenization, how to handle this discrepancy
+                    inputs = tokenize(query[k], " ".join(ws))
                     inputs['label_masks'] = v['label_masks']
                     seq_len = len(v['label_masks'])
                     # assert seq_len == len(inputs['input_ids'])
@@ -156,12 +188,15 @@ def generate_dataset(datafile, bert_version='bert-base-uncased', batch_size=32,
                   "end_labels": tf.int32,
                   "match_labels": tf.int32,
                   'label_masks': tf.bool}
+    if 'roberta' in bert_version:
+        data_shapes.pop('token_type_ids')
+        data_types.pop('token_type_ids')
 
     dataset = tf.data.Dataset.from_generator(encoded_seq, output_shapes=data_shapes,
                                              output_types=data_types)
     dataset = dataset.padded_batch(batch_size, padded_shapes=data_shapes)
     if shuffle:
-        dataset = dataset.shuffle(buffer_size=600, reshuffle_each_iteration=True)
+        dataset = dataset.shuffle(buffer_size=1600, reshuffle_each_iteration=True)
     dataset = dataset
     return dataset
 
@@ -175,6 +210,8 @@ if __name__ == '__main__':
     #     print(example)
     #     break
 
-    dataset = generate_dataset(datafile, batch_size=32, shuffle=False)
-    for e in dataset.take(1):
-        print(e)
+    # dataset = generate_dataset(datafile, batch_size=32, shuffle=False)
+    dataset = generate_dataset(datafile, 'roberta-base', batch_size=32, shuffle=False)
+    for e in dataset.take(-1):
+        # print(e)
+        pass

@@ -2,7 +2,7 @@ import argparse
 import os
 import tensorflow as tf
 from .utils import generate_dataset
-from .model import MRCNER
+from .model import MRCNER, MRCBiLSTMNER
 from bert_ner.optimization import create_optimizer
 
 
@@ -21,7 +21,7 @@ def main():
     parser.add_argument('--epoch', type=int, help='train epoch', default=3)
     parser.add_argument('--version', type=str, help='bert version', default='bert-base-uncased')
     parser.add_argument('--truecase', action='store_true', help='whether to do truecase', default=False)
-    parser.add_argument('--feature_extraction', action='store_true', help='whether to use BertFeatureExtractionNER',
+    parser.add_argument('--bilstm', action='store_true', help='whether to use BertFeatureExtractionNER',
                         default=False)
     parser.add_argument('--max_len', type=int, help='whether to do truecase', default=512)
 
@@ -37,8 +37,8 @@ def main():
     bert_version = args.version
     truecase = args.truecase
     max_len = args.max_len
-    feature_extraction = args.feature_extraction
-    print("Using bert as feature extractor? {}".format(feature_extraction))
+    bilstm = args.bilstm
+    print("Using bilstm to construct span feature? {}".format(bilstm))
 
     print("bert version: {}".format(bert_version))
     lr = args.lr
@@ -63,9 +63,14 @@ def main():
                                               save_weights_only=True)
     early_stop = tf.keras.callbacks.EarlyStopping(patience=1, verbose=1)
 
-    model = MRCNER(dropout_rate=dropout_rate, match_dropout_rate=match_dropout_rate, initializer_range=0.02,
-                   bert_version=bert_version, start_loss_weight=start_loss_weight,
-                   end_loss_weight=end_loss_weight, match_loss_weight=match_loss_weight)
+    if bilstm:
+        model = MRCBiLSTMNER(dropout_rate=dropout_rate, match_dropout_rate=match_dropout_rate, initializer_range=0.02,
+                             bert_version=bert_version, start_loss_weight=start_loss_weight,
+                             end_loss_weight=end_loss_weight, match_loss_weight=match_loss_weight)
+    else:
+        model = MRCNER(dropout_rate=dropout_rate, match_dropout_rate=match_dropout_rate, initializer_range=0.02,
+                       bert_version=bert_version, start_loss_weight=start_loss_weight,
+                       end_loss_weight=end_loss_weight, match_loss_weight=match_loss_weight)
 
     # first stage only train dense layer
     model.bert.trainable = False
@@ -94,27 +99,21 @@ def main():
     train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
     model.compile(optimizer=opt1)
 
-    if feature_extraction:
-        raise Exception("Not implemented error")
-    else:
+    if 'albert' not in bert_version:
         stage1_epoch = 10
-    model.fit(train_dataset, epochs=stage1_epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
-              callbacks=[early_stop])
+        model.fit(train_dataset, epochs=stage1_epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
+                  callbacks=[early_stop])
 
     # now tuning the whole model
-    if not feature_extraction:
-        model.bert.trainable = True
-        model.bert_finetune = True
-        model.compile(optimizer=opt2)
+    model.bert.trainable = True
+    model.bert_finetune = True
+    model.compile(optimizer=opt2)
 
-        model.fit(train_dataset, epochs=epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
-                  callbacks=[ckpt, early_stop])
+    model.fit(train_dataset, epochs=epoch, validation_data=val_dataset, validation_freq=1, verbose=1,
+              callbacks=[ckpt, early_stop])
 
-        latest_ckpt = tf.train.latest_checkpoint(model_dir)
-
-        model.load_weights(latest_ckpt).expect_partial()
-    else:
-        raise Exception("Not implemented error")
+    latest_ckpt = tf.train.latest_checkpoint(model_dir)
+    model.load_weights(latest_ckpt).expect_partial()
 
     model.bert_finetune = False
     model.compile()
