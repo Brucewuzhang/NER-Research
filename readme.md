@@ -17,7 +17,7 @@ Create the conda env I used:
 
 ## My current best result on conll2003: 
 
-micro avg f1: 92.2, using roberta + bilstm + crf
+micro avg f1: **92.2**, using roberta-large + bilstm + crf
 
 ## Algorithms implemented:
 * Machine Reading Comprehension based NER classification
