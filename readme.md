@@ -4,6 +4,8 @@ Very easy to understand and read-friendly implementations. Some training may nee
 the transfered layers and newly added layers, we take a two stage training strategy instead of a single pass training
 with two different optimizers.
 
+**If you have any questions regarding my implemented or suggestions, please file an issue.**
+
 
 ## Requirements:
 * Tensorflow 2.2 and other python packages
