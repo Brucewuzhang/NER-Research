@@ -15,7 +15,9 @@ Create the conda env I used:
 
     conda env create -f conda_env.yml
 
-## My current best result on conll2003: f1: 91.9
+## My current best result on conll2003: 
+
+micro avg f1: 92.2, using roberta + bilstm + crf
 
 ## Algorithms implemented:
 * Machine Reading Comprehension based NER classification
@@ -24,9 +26,12 @@ Create the conda env I used:
 * bilstm +crf
 
 
-### Roberta + bilstm layer
+### Roberta + bilstm + crf
+roberta base
 
-    python -m bert_bilstm_crf.train --data_dir ../NER/conll2003 --model_dir ../NER/BertBiLstm --version roberta-base --two_stage --epoch 4
+    python -m bert_bilstm_crf.train --data_dir ../NER/conll2003 \
+        --model_dir ../NER/BertBiLstm --version roberta-base \
+         --two_stage --epoch 4
 
 | Type| precision  |  recall | f1-score |  support|
 |:-----:|------------|---------|----------|---------|
@@ -36,6 +41,21 @@ Create the conda env I used:
  |     LOC   |   0.939   |  0.937   |  0.938    |  1668|
 |micro avg  |    0.913  |   0.925  |   0.919    |  5648|
 |macro avg   |   0.914   |  0.925   |  0.919   |   5648|
+
+roberta large
+
+    python -m bert_bilstm_crf.train --data_dir ../NER/conll2003 \
+        --model_dir ../NER/BertBiLstm --version roberta-large \
+        --epoch 5 --lr 8e-6 --batch_size 8 --two_stage
+        
+| Type| precision  |  recall | f1-score |  support|
+|:-----:|------------|---------|----------|---------|
+|     MISC   |   0.796  |   0.815  |   0.805 |      702|
+ |     ORG  |    0.892  |   0.924  |   0.908 |     1661|
+ |     LOC   |   0.939   |  0.934  |   0.937 |     1668|
+|      PER  |    0.979  |   0.971  |   0.975 |     1617|
+|micro avg  |    0.918  |   0.927  |   0.922  |    5648|
+|macro avg  |    0.919  |   0.927  |   0.923   |   5648|
 
 
 ### Roberta + dense layer

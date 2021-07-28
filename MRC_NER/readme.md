@@ -2,6 +2,7 @@
 
 algorithm in the paper [A Unified MRC Framework for Named Entity Recognition](https://aclanthology.org/2020.acl-main.519.pdf)
     
+MRC based NER method has the potential to incorporated data from other data sources which only have overlapping labels.
     
 Result using bert-base-uncased:
 
