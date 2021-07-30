@@ -21,7 +21,7 @@ micro avg f1: **92.2**, using roberta-large + bilstm + crf
 
 ## Algorithms implemented:
 * Machine Reading Comprehension based NER classification
-* Bert|RoBerta + bilstm +crf
+* Bert|RoBerta|Electra + bilstm +crf
 * Bert|RoBerta + dense
 * bilstm +crf
 

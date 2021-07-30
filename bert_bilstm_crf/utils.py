@@ -1,5 +1,5 @@
 import tensorflow as tf
-from transformers import BertTokenizer, RobertaTokenizer
+from transformers import BertTokenizer, RobertaTokenizer, ElectraTokenizerFast
 from seqeval.metrics import classification_report
 import re
 
@@ -161,9 +161,14 @@ def encode_file(datafile, labels, bert_version='bert-base-uncased', do_truecase=
     if 'roberta' in bert_version:
         tokenizer = RobertaTokenizer.from_pretrained(bert_version)
         add_space = ' '
-    else:
+    elif 'bert' in bert_version:
         tokenizer = BertTokenizer.from_pretrained(bert_version)
         add_space = ''
+    elif 'electra' in bert_version:
+        tokenizer = ElectraTokenizerFast.from_pretrained(bert_version)
+        add_space = ''
+    else:
+        raise Exception("tokenize not defined for bert version: {}".format(bert_version))
 
     def gen():
         with open(datafile, 'r', encoding='utf-8') as f:
@@ -237,7 +242,7 @@ def generate_dataset(datafile, labels, bert_version='bert-base-uncased', batch_s
     dataset = tf.data.Dataset.from_generator(encoded_seq, output_shapes=padded_shapes,
                                              output_types=output_types)
     if shuffle:
-        dataset = dataset.shuffle(buffer_size=50_000, reshuffle_each_iteration=True)
+        dataset = dataset.shuffle(buffer_size=5_000, reshuffle_each_iteration=True)
 
     if dynamic_batch is not None:
         batch_config = batching_scheme(dynamic_batch, max_length=max_len,

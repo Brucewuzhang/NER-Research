@@ -43,6 +43,27 @@
 |macro avg   |   0.914   |  0.925   |  0.919   |   5648|
 
 
+#### # two stage training for electra
+
+    python -m bert_bilstm_crf.train --data_dir ../NER/conll2003 \
+         --model_dir ../NER/BertBiLstm \ 
+         --version google/electra-base-discriminator \
+         --two_stage
+
+| Type| precision  |  recall | f1-score |  support|
+|:-----:|------------|---------|----------|---------|
+|      PER  |    0.975 |    0.973  |   0.974  |    1617|
+ |    ORG   |   0.887  |   0.908   |  0.898   |   1661|
+ |     LOC  |    0.933 |    0.930  |   0.932 |     1668|
+ |    MISC   |   0.809 |    0.795  |   0.802  |     702|
+|micro avg |     0.916  |   0.919  |   0.918  |    5648|
+|macro avg  |    0.916 |    0.919  |   0.918  |    5648|
+
+
+
+
+
+
 
 
 

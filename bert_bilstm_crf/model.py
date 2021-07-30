@@ -1,4 +1,4 @@
-from transformers import TFBertModel, TFRobertaModel
+from transformers import TFBertModel, TFRobertaModel, TFElectraModel
 import tensorflow as tf
 import tensorflow_addons as tfa
 
@@ -7,7 +7,13 @@ class BertBilstmCRF(tf.keras.Model):
     def __init__(self, hidden_size, n_labels, dropout_rate=0.1, initializer_range=0.02,
                  bert_version='bert-base-uncased'):
         super(BertBilstmCRF, self).__init__()
-        self.bert = TFRobertaModel.from_pretrained(bert_version)
+        if 'bert' in bert_version:
+            self.bert = TFBertModel.from_pretrained(bert_version)
+        elif 'electra' in bert_version:
+            self.bert = TFElectraModel.from_pretrained(bert_version)
+        else:
+            raise Exception("Not implemented Error for bert version: {}".format(bert_version))
+
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
         self.bilstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(hidden_size // 2, return_sequences=True))
         self.transition_params = tf.Variable(tf.random.uniform((n_labels, n_labels)))

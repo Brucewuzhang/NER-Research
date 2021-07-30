@@ -110,7 +110,7 @@ def main():
         opt1 = tf.keras.optimizers.Adam(lr1)
 
         model.compile(optimizer=opt1)
-        if 'roberta' in bert_version:
+        if 'roberta' in bert_version or 'electra' in bert_version:
             stage1_epoch = 10
         else:
             stage1_epoch = 15
